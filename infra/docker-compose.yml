@@ -1,16 +1,20 @@
 services:
   db:
     image: postgres:16
+    env_file:
+      - ../.env
     environment:
-      POSTGRES_USER: mspr
-      POSTGRES_PASSWORD: mspr
-      POSTGRES_DB: mspr_db
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mspr -d mspr_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -18,11 +22,17 @@ services:
   api:
     build:
       context: ../api
+    env_file:
+      - ../.env
     environment:
-      DATABASE_URL: postgresql+psycopg2://mspr:mspr@db:5432/mspr_db
-      JWT_SECRET: change_me
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES}
+      API_HOST: ${API_HOST}
+      API_PORT: ${API_PORT}
     ports:
-      - "8000:8000"
+      - "${API_PORT}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -30,8 +40,12 @@ services:
   etl:
     build:
       context: ../etl
+    env_file:
+      - ../.env
     environment:
-      DATABASE_URL: postgresql+psycopg2://mspr:mspr@db:5432/mspr_db
+      DATABASE_URL: ${DATABASE_URL}
+      ETL_LOG_LEVEL: ${ETL_LOG_LEVEL}
+      ETL_RUN_MODE: ${ETL_RUN_MODE}
     depends_on:
       db:
         condition: service_healthy
@@ -40,12 +54,27 @@ services:
   transform:
     build:
       context: ../transform
+    env_file:
+      - ../.env
     environment:
-      DATABASE_URL: postgresql+psycopg2://mspr:mspr@db:5432/mspr_db
+      DATABASE_URL: ${DATABASE_URL}
     depends_on:
       db:
         condition: service_healthy
     profiles: ["jobs"]
+
+  frontend:
+    build:
+      context: ../frontend
+    env_file:
+      - ../.env
+    environment:
+      # Nuxt lit uniquement les variables NUXT_*
+      NUXT_PUBLIC_API_BASE_URL: ${NUXT_PUBLIC_API_BASE_URL}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
 
 volumes:
   pgdata:
